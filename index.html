@@ -1,106 +1,152 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="utf-8">
-  <title>PeerJS Video Rooms with Secrets</title>
-  <style>
-    body { text-align: center; font-family: sans-serif; }
-    video { width: 45%; margin: 1%; border: 2px solid black; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Selfie Segmentation</title>
+    <style>
+        #output {
+            position: absolute;
+        }
+        body {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #f0f0f0;
+            margin: 0;
+        }
+
+        #video, #output {
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            background-color: #fff;
+        }
+        #imageSelector{
+          margin-bottom: 10px;
+        }
+    </style>
 </head>
 <body>
-  <h1>Secure Multi-Room Video Chat</h1>
+    <div id="imageSelector">
+        <select id="backgroundSelector" onchange="changeBackground(this.options[this.selectedIndex].dataset.url)">
+            <option data-url="https://raw.githubusercontent.com/RattanArt/Model/refs/heads/main/imgHeat01.png">imgHeat01.png</option>
+            <option data-url="https://raw.githubusercontent.com/RattanArt/Model/refs/heads/main/imgHeat02.png">imgHeat02.png</option>
+            <option data-url="https://raw.githubusercontent.com/RattanArt/Model/refs/heads/main/imgHeat03.png">imgHeat03.png</option>
+        </select>
+    </div>
+    <div>
+        <video id="video" width="640" height="480" autoplay playsinline></video>
+        <canvas id="output" width="640" height="480"></canvas>
+    </div>
 
-  <label>Select Room:</label>
-  <select id="room">
-    <option value="room1">Room 1</option>
-    <option value="room2">Room 2</option>
-    <option value="room3">Room 3</option>
-    <option value="room4">Room 4</option>
-    <option value="room5">Room 5</option>
-  </select>
-  <br><br>
-  <input type="password" id="secret" placeholder="Enter Room Secret">
-  <button onclick="joinRoom()">Join Room</button>
-
-  <p>Your ID: <input id="my-id" readonly></p>
-  <input id="target-id" placeholder="Enter Peer ID to Call">
-  <button onclick="startCall()">Call Peer</button>
-
-  <div>
-    <video id="localVideo" autoplay muted playsinline></video>
-    <video id="remoteVideo" autoplay playsinline></video>
-  </div>
-
-  <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.2/dist/peerjs.min.js"></script>
-  <script>
-    let peer, localStream;
-    const roomPeers = { room1: [], room2: [], room3: [], room4: [], room5: [] };
-    const roomSecrets = {
-      room1: "alpha123",
-      room2: "bravo456",
-      room3: "charlie789",
-      room4: "delta000",
-      room5: "echo999"
-    };
-
-    const myIdInput = document.getElementById('my-id');
-    const targetIdInput = document.getElementById('target-id');
-    const roomSelect = document.getElementById('room');
-    const secretInput = document.getElementById('secret');
-    const localVideo = document.getElementById('localVideo');
-    const remoteVideo = document.getElementById('remoteVideo');
-
-    async function joinRoom() {
-      const room = roomSelect.value;
-      const enteredSecret = secretInput.value;
-
-      if (enteredSecret !== roomSecrets[room]) {
-        alert("Incorrect secret for " + room);
-        return;
-      }
-
-      localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      localVideo.srcObject = localStream;
-
-      peer = new Peer(undefined, {
-        host: 'peerjs.com',
-        port: 443,
-        secure: true
-      });
-
-      peer.on('open', id => {
-        myIdInput.value = id;
-        roomPeers[room].push(id);
-
-        // Auto-fill target peer if one already exists in the room
-        const others = roomPeers[room].filter(pid => pid !== id);
-        if (others.length > 0) {
-          targetIdInput.value = others[0];
+    <script type="module">
+        const videoElement = document.getElementById('video');
+        const canvasElement = document.getElementById('output');
+        let backgroundImage = null;
+        
+        async function loadMediaPipe() {
+          await new Promise(resolve => {
+            const script = document.createElement('script');
+            script.src = 'https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation';
+            script.type = 'module';
+            script.onload = resolve;
+            document.head.appendChild(script);
+          });
         }
-      });
 
-      peer.on('call', call => {
-        call.answer(localStream);
-        call.on('stream', stream => {
-          remoteVideo.srcObject = stream;
+        async function loadLibrary(url) {
+          await new Promise(resolve => {
+            const script = document.createElement('script');
+            script.src = url;
+            script.type = 'module';
+            script.onload = resolve;
+            document.head.appendChild(script);
+          });
+        }
+
+        async function changeBackground(imageUrl) {
+            backgroundImage = new Image();
+            backgroundImage.crossOrigin = 'anonymous';
+            backgroundImage.src = imageUrl;
+            await new Promise((resolve, reject) => {
+                backgroundImage.onload = resolve;
+                backgroundImage.onerror = reject;
+            });
+        }
+
+        async function main() {
+            await loadMediaPipe();
+            await loadLibrary('https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js');
+            await loadLibrary('https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js');
+        
+            const canvasCtx = canvasElement.getContext('2d');
+        
+            const selfieSegmentation = new SelfieSegmentation({locateFile: (file) => {
+              return `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`;
+            }});
+        
+            selfieSegmentation.setOptions({
+              modelSelection: 1,
+            });
+        
+            selfieSegmentation.onResults((results) => {
+              canvasCtx.save();
+              canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+              canvasCtx.drawImage(results.segmentationMask, 0, 0, canvasElement.width, canvasElement.height);
+        
+              canvasCtx.globalCompositeOperation = 'source-in';
+              canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+        
+              canvasCtx.globalCompositeOperation = 'destination-over';
+              if (backgroundImage) {
+                  const imageAspectRatio = backgroundImage.width / backgroundImage.height;
+                  const canvasAspectRatio = canvasElement.width / canvasElement.height;
+                  let drawWidth, drawHeight, x, y;
+        
+                  if (imageAspectRatio > canvasAspectRatio) {
+                    drawWidth = canvasElement.width;
+                    drawHeight = canvasElement.width / imageAspectRatio;
+                    x = 0;
+                    y = (canvasElement.height - drawHeight) / 2;
+                  } else {
+                    drawWidth = canvasElement.height * imageAspectRatio;
+                    drawHeight = canvasElement.height;
+                    x = (canvasElement.width - drawWidth) / 2;
+                    y = 0;
+                  }
+                  canvasCtx.drawImage(backgroundImage, x, y, drawWidth, drawHeight);
+              } else {
+                  canvasCtx.fillStyle = 'black';
+                  canvasCtx.fillRect(0, 0, canvasElement.width, canvasElement.height);
+              }
+        
+              canvasCtx.restore();
+            });
+        
+            const camera = new Camera(videoElement, {
+              onFrame: async () => {
+                await selfieSegmentation.send({image: videoElement});
+              },
+              width: 640,
+              height: 480,
+            });
+            camera.start();
+        }
+
+        navigator.mediaDevices.getUserMedia({ video: true })
+        .then(async () => {
+          await changeBackground("https://raw.githubusercontent.com/RattanArt/Model/refs/heads/main/imgHeat01.png");
+          main();
+        })
+        .catch((error) => {
+          console.error("Error accessing camera:", error);
+          const message = document.createElement("p");
+          message.textContent = "Error accessing camera. Please check permissions.";
+          document.body.appendChild(message);
         });
-      });
-
-      peer.on('error', err => {
-        console.error("PeerJS error:", err);
-      });
-    }
-
-    function startCall() {
-      const targetId = targetIdInput.value;
-      if (!targetId) return alert("Please enter a peer ID to call.");
-
-      const call = peer.call(targetId, localStream);
-      call.on('stream', stream => {
-        remoteVideo.srcObject = stream;
-      });
-    }
-  </script>
+    </script>
 </body>
 </html>
