@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -10,143 +11,121 @@
         }
         body {
             display: flex;
-            flex-direction: column;
             justify-content: center;
             align-items: center;
-            min-height: 100vh;
-            background-color: #f0f0f0;
-            margin: 0;
+			background-color: #f0f0f0;
         }
 
-        #video, #output {
+        #video {
+			display: flex;
+        }
+		#output {
+		display: flex;
             border: 1px solid #ccc;
             border-radius: 8px;
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
             background-color: #fff;
         }
-        #imageSelector{
-          margin-bottom: 10px;
-        }
     </style>
 </head>
 <body>
-    <div id="imageSelector">
-        <select id="backgroundSelector" onchange="changeBackground(this.options[this.selectedIndex].dataset.url)">
-            <option data-url="https://raw.githubusercontent.com/RattanArt/Model/refs/heads/main/imgHeat01.png">imgHeat01.png</option>
-            <option data-url="https://raw.githubusercontent.com/RattanArt/Model/refs/heads/main/imgHeat02.png">imgHeat02.png</option>
-            <option data-url="https://raw.githubusercontent.com/RattanArt/Model/refs/heads/main/imgHeat03.png">imgHeat03.png</option>
-        </select>
-    </div>
     <div>
-        <video id="video" width="640" height="480" autoplay playsinline></video>
+        <!---->
+		<video id="video" width="40" height="30" autoplay playsinline></video>
+		
         <canvas id="output" width="640" height="480"></canvas>
     </div>
-
+    
     <script type="module">
-        const videoElement = document.getElementById('video');
-        const canvasElement = document.getElementById('output');
-        let backgroundImage = null;
-        
-        async function loadMediaPipe() {
-          await new Promise(resolve => {
-            const script = document.createElement('script');
-            script.src = 'https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation';
-            script.type = 'module';
-            script.onload = resolve;
-            document.head.appendChild(script);
-          });
-        }
+	
+const videoElement = document.getElementById('video');
+const canvasElement = document.getElementById('output');
+const loadingText = document.createElement('p');
+loadingText.textContent = 'Loading...';
+document.body.appendChild(loadingText);
 
-        async function loadLibrary(url) {
-          await new Promise(resolve => {
-            const script = document.createElement('script');
-            script.src = url;
-            script.type = 'module';
-            script.onload = resolve;
-            document.head.appendChild(script);
-          });
-        }
+async function loadMediaPipe() {
+  const backgroundImage = new Image();
+  backgroundImage.src = 'https://raw.githubusercontent.com/RattanArt/Model/refs/heads/main/imgHeat03.png';
+  backgroundImage.crossOrigin = "anonymous";
+  await new Promise(resolve => backgroundImage.onload = resolve);
 
-        async function changeBackground(imageUrl) {
-            backgroundImage = new Image();
-            backgroundImage.crossOrigin = 'anonymous';
-            backgroundImage.src = imageUrl;
-            await new Promise((resolve, reject) => {
-                backgroundImage.onload = resolve;
-                backgroundImage.onerror = reject;
-            });
-        }
+  await new Promise(resolve => {
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation';
+    script.type = 'module';
+    script.onload = resolve;
+    document.head.appendChild(script);
+  });
+}
 
-        async function main() {
-            await loadMediaPipe();
-            await loadLibrary('https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js');
-            await loadLibrary('https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js');
-        
-            const canvasCtx = canvasElement.getContext('2d');
-        
-            const selfieSegmentation = new SelfieSegmentation({locateFile: (file) => {
-              return `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`;
-            }});
-        
-            selfieSegmentation.setOptions({
-              modelSelection: 1,
-            });
-        
-            selfieSegmentation.onResults((results) => {
-              canvasCtx.save();
-              canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-              canvasCtx.drawImage(results.segmentationMask, 0, 0, canvasElement.width, canvasElement.height);
-        
-              canvasCtx.globalCompositeOperation = 'source-in';
-              canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
-        
-              canvasCtx.globalCompositeOperation = 'destination-over';
-              if (backgroundImage) {
-                  const imageAspectRatio = backgroundImage.width / backgroundImage.height;
-                  const canvasAspectRatio = canvasElement.width / canvasElement.height;
-                  let drawWidth, drawHeight, x, y;
-        
-                  if (imageAspectRatio > canvasAspectRatio) {
-                    drawWidth = canvasElement.width;
-                    drawHeight = canvasElement.width / imageAspectRatio;
-                    x = 0;
-                    y = (canvasElement.height - drawHeight) / 2;
-                  } else {
-                    drawWidth = canvasElement.height * imageAspectRatio;
-                    drawHeight = canvasElement.height;
-                    x = (canvasElement.width - drawWidth) / 2;
-                    y = 0;
-                  }
-                  canvasCtx.drawImage(backgroundImage, x, y, drawWidth, drawHeight);
-              } else {
-                  canvasCtx.fillStyle = 'black';
-                  canvasCtx.fillRect(0, 0, canvasElement.width, canvasElement.height);
-              }
-        
-              canvasCtx.restore();
-            });
-        
-            const camera = new Camera(videoElement, {
-              onFrame: async () => {
-                await selfieSegmentation.send({image: videoElement});
-              },
-              width: 640,
-              height: 480,
-            });
-            camera.start();
-        }
 
-        navigator.mediaDevices.getUserMedia({ video: true })
-        .then(async () => {
-          await changeBackground("https://raw.githubusercontent.com/RattanArt/Model/refs/heads/main/imgHeat01.png");
-          main();
-        })
-        .catch((error) => {
-          console.error("Error accessing camera:", error);
-          const message = document.createElement("p");
-          message.textContent = "Error accessing camera. Please check permissions.";
-          document.body.appendChild(message);
-        });
-    </script>
+async function main() {
+    await loadMediaPipe();
+    await new Promise(resolve => {
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js';
+      script.type = 'module';
+      script.onload = resolve;
+      document.head.appendChild(script);
+    });
+  
+    await new Promise(resolve => {
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js';
+      script.type = 'module';
+      script.onload = resolve;
+      document.head.appendChild(script);
+    });
+
+  const canvasCtx = canvasElement.getContext('2d');
+  
+  const backgroundImage = new Image();
+  backgroundImage.src = 'https://raw.githubusercontent.com/RattanArt/Model/refs/heads/main/imgHeat03.png';
+  backgroundImage.crossOrigin = "anonymous";
+  await new Promise(resolve => backgroundImage.onload = resolve);
+
+  const selfieSegmentation = new SelfieSegmentation({locateFile: (file) => {
+    return `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`;
+  }});
+
+  selfieSegmentation.setOptions({
+    modelSelection: 1,
+  });
+
+  selfieSegmentation.onResults((results) => {
+    canvasCtx.save();
+    canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+    canvasCtx.drawImage(results.segmentationMask, 0, 0, canvasElement.width, canvasElement.height);
+
+    canvasCtx.globalCompositeOperation = 'source-in';
+    canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+
+      canvasCtx.globalCompositeOperation = 'destination-over';
+      canvasCtx.drawImage(backgroundImage, 0, 0, canvasElement.width, canvasElement.height);
+  
+
+    canvasCtx.restore();
+  });
+
+  const camera = new Camera(videoElement, {
+    onFrame: async () => {
+      await selfieSegmentation.send({image: videoElement});
+    },
+    width: 640,
+    height: 480,
+  });
+  camera.start();
+  loadingText.remove();
+}
+
+navigator.mediaDevices.getUserMedia({ video: true }).then(() => {
+  main();
+}).catch((error) => {
+    console.error("Error accessing camera:", error);
+    loadingText.textContent = "Error accessing camera. Please check permissions.";
+  });
+	
+	</script>
 </body>
 </html>
