@@ -2,22 +2,26 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>WebRTC with PeerJS - Two Rooms</title>
+  <title>PeerJS Video Rooms with Secrets</title>
   <style>
     body { text-align: center; font-family: sans-serif; }
     video { width: 45%; margin: 1%; border: 2px solid black; }
   </style>
 </head>
 <body>
-  <h1>PeerJS WebRTC - Multi-Room</h1>
+  <h1>Secure Multi-Room Video Chat</h1>
 
   <label>Select Room:</label>
   <select id="room">
     <option value="room1">Room 1</option>
     <option value="room2">Room 2</option>
-  </select><br><br>
-
-  <button onclick="init()">Join Room</button><br><br>
+    <option value="room3">Room 3</option>
+    <option value="room4">Room 4</option>
+    <option value="room5">Room 5</option>
+  </select>
+  <br><br>
+  <input type="password" id="secret" placeholder="Enter Room Secret">
+  <button onclick="joinRoom()">Join Room</button>
 
   <p>Your ID: <input id="my-id" readonly></p>
   <input id="target-id" placeholder="Enter Peer ID to Call">
@@ -31,15 +35,30 @@
   <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.2/dist/peerjs.min.js"></script>
   <script>
     let peer, localStream;
-    const roomPeers = { room1: [], room2: [] };
+    const roomPeers = { room1: [], room2: [], room3: [], room4: [], room5: [] };
+    const roomSecrets = {
+      room1: "alpha123",
+      room2: "bravo456",
+      room3: "charlie789",
+      room4: "delta000",
+      room5: "echo999"
+    };
+
     const myIdInput = document.getElementById('my-id');
     const targetIdInput = document.getElementById('target-id');
     const roomSelect = document.getElementById('room');
+    const secretInput = document.getElementById('secret');
     const localVideo = document.getElementById('localVideo');
     const remoteVideo = document.getElementById('remoteVideo');
 
-    async function init() {
+    async function joinRoom() {
       const room = roomSelect.value;
+      const enteredSecret = secretInput.value;
+
+      if (enteredSecret !== roomSecrets[room]) {
+        alert("Incorrect secret for " + room);
+        return;
+      }
 
       localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
       localVideo.srcObject = localStream;
@@ -53,6 +72,12 @@
       peer.on('open', id => {
         myIdInput.value = id;
         roomPeers[room].push(id);
+
+        // Auto-fill target peer if one already exists in the room
+        const others = roomPeers[room].filter(pid => pid !== id);
+        if (others.length > 0) {
+          targetIdInput.value = others[0];
+        }
       });
 
       peer.on('call', call => {
@@ -61,10 +86,16 @@
           remoteVideo.srcObject = stream;
         });
       });
+
+      peer.on('error', err => {
+        console.error("PeerJS error:", err);
+      });
     }
 
     function startCall() {
       const targetId = targetIdInput.value;
+      if (!targetId) return alert("Please enter a peer ID to call.");
+
       const call = peer.call(targetId, localStream);
       call.on('stream', stream => {
         remoteVideo.srcObject = stream;
