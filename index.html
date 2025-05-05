@@ -2,19 +2,26 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>PeerJS Video Chat</title>
+  <title>WebRTC with PeerJS - Two Rooms</title>
   <style>
-    body { font-family: sans-serif; text-align: center; }
-    video { width: 45%; border: 2px solid black; margin: 10px; }
-    input, button { margin: 5px; }
+    body { text-align: center; font-family: sans-serif; }
+    video { width: 45%; margin: 1%; border: 2px solid black; }
   </style>
 </head>
 <body>
-  <h1>PeerJS Video Chat</h1>
+  <h1>PeerJS WebRTC - Multi-Room</h1>
 
-  <p>Your Peer ID: <input id="my-id" readonly></p>
-  <input id="target-id" placeholder="Enter Peer ID to call">
-  <button onclick="startCall()">Call</button>
+  <label>Select Room:</label>
+  <select id="room">
+    <option value="room1">Room 1</option>
+    <option value="room2">Room 2</option>
+  </select><br><br>
+
+  <button onclick="init()">Join Room</button><br><br>
+
+  <p>Your ID: <input id="my-id" readonly></p>
+  <input id="target-id" placeholder="Enter Peer ID to Call">
+  <button onclick="startCall()">Call Peer</button>
 
   <div>
     <video id="localVideo" autoplay muted playsinline></video>
@@ -24,58 +31,45 @@
   <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.2/dist/peerjs.min.js"></script>
   <script>
     let peer, localStream;
-
+    const roomPeers = { room1: [], room2: [] };
     const myIdInput = document.getElementById('my-id');
     const targetIdInput = document.getElementById('target-id');
+    const roomSelect = document.getElementById('room');
     const localVideo = document.getElementById('localVideo');
     const remoteVideo = document.getElementById('remoteVideo');
 
     async function init() {
-      try {
-        localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        localVideo.srcObject = localStream;
+      const room = roomSelect.value;
 
-        peer = new Peer({
-          host: 'peerjs.com',
-          port: 443,
-          secure: true
-        });
+      localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      localVideo.srcObject = localStream;
 
-        peer.on('open', id => {
-          myIdInput.value = id;
-        });
+      peer = new Peer(undefined, {
+        host: 'peerjs.com',
+        port: 443,
+        secure: true
+      });
 
-        peer.on('call', call => {
-          call.answer(localStream);
-          call.on('stream', remoteStream => {
-            remoteVideo.srcObject = remoteStream;
-          });
-        });
+      peer.on('open', id => {
+        myIdInput.value = id;
+        roomPeers[room].push(id);
+      });
 
-        peer.on('error', err => {
-          console.error(err);
-          alert('Peer error: ' + err.message);
+      peer.on('call', call => {
+        call.answer(localStream);
+        call.on('stream', stream => {
+          remoteVideo.srcObject = stream;
         });
-      } catch (err) {
-        alert('Could not access camera/mic: ' + err.message);
-      }
+      });
     }
 
     function startCall() {
       const targetId = targetIdInput.value;
-      if (!targetId) return alert('Enter a target ID to call.');
-
       const call = peer.call(targetId, localStream);
-      call.on('stream', remoteStream => {
-        remoteVideo.srcObject = remoteStream;
-      });
-
-      call.on('error', err => {
-        alert('Call error: ' + err.message);
+      call.on('stream', stream => {
+        remoteVideo.srcObject = stream;
       });
     }
-
-    window.onload = init;
   </script>
 </body>
 </html>
