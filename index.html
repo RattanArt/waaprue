@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Selfie Segmentation</title>
+    <title>Selfie Segmentation with Canvas Recording</title>
     <style>
         #output {
             position: absolute;
@@ -13,119 +13,202 @@
             display: flex;
             justify-content: center;
             align-items: center;
-			background-color: #f0f0f0;
+            background-color: #f0f0f0;
+            flex-direction: column;
+            height: 100vh;
+            margin: 0;
         }
 
-#video {
-            display: none; /* Hide the video element */
+        #video {
+            display: none;
         }
-		#output {
-		display: flex;
+
+        #output {
+            display: flex;
             border: 1px solid #ccc;
             border-radius: 8px;
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
             background-color: #fff;
         }
+
+        #controls {
+            margin-top: 10px;
+            text-align: center;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            margin: 5px;
+            cursor: pointer;
+        }
+
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 20px;
+            color: #333;
+        }
     </style>
 </head>
 <body>
+<div id="loading">Loading...</div>
     <div>
-
-		<video id="video" width="40" height="30" autoplay playsinline></video>
+        <div id="controls">
+            <button id="startRecording">Start Recording</button>
+            <button id="stopRecording" disabled>Stop Recording</button>
+            <a id="downloadRecording" href="#" download="recording.webm" style="display: none;">
+                <button>Download Recording</button>
+            </a>
+        </div>
 		
-        <canvas id="output" width="640" height="480"></canvas>
-    </div>
     
+        <video id="video" width="640" height="480" autoplay playsinline></video>
+        <canvas id="output" width="640" height="480"></canvas>
+
+    </div>
+
     <script type="module">
-	
-const videoElement = document.getElementById('video');
-const canvasElement = document.getElementById('output');
-const loadingText = document.createElement('p');
-loadingText.textContent = 'Loading...';
-document.body.appendChild(loadingText);
+        const videoElement = document.getElementById('video');
+        const canvasElement = document.getElementById('output');
+        const startRecordingButton = document.getElementById('startRecording');
+        const stopRecordingButton = document.getElementById('stopRecording');
+        const downloadRecordingButton = document.getElementById('downloadRecording');
+        const loadingText = document.getElementById('loading');
 
-async function loadMediaPipe() {
-  const backgroundImage = new Image();
-  backgroundImage.src = 'https://raw.githubusercontent.com/RattanArt/Model/refs/heads/main/imgHeat03.png';
-  backgroundImage.crossOrigin = "anonymous";
-  await new Promise(resolve => backgroundImage.onload = resolve);
+        let mediaRecorder;
+        let recordedChunks = [];
 
-  await new Promise(resolve => {
-    const script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation';
-    script.type = 'module';
-    script.onload = resolve;
-    document.head.appendChild(script);
-  });
-}
+        async function loadMediaPipe() {
+            const backgroundImage = new Image();
+            backgroundImage.src = 'https://raw.githubusercontent.com/RattanArt/Model/refs/heads/main/imgHeat03.png';
+            backgroundImage.crossOrigin = "anonymous";
+            await new Promise(resolve => backgroundImage.onload = resolve);
 
+            await new Promise(resolve => {
+                const script = document.createElement('script');
+                script.src = 'https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation';
+                script.type = 'module';
+                script.onload = resolve;
+                document.head.appendChild(script);
+            });
 
-async function main() {
-    await loadMediaPipe();
-    await new Promise(resolve => {
-      const script = document.createElement('script');
-      script.src = 'https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js';
-      script.type = 'module';
-      script.onload = resolve;
-      document.head.appendChild(script);
-    });
-  
-    await new Promise(resolve => {
-      const script = document.createElement('script');
-      script.src = 'https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js';
-      script.type = 'module';
-      script.onload = resolve;
-      document.head.appendChild(script);
-    });
+            await new Promise(resolve => {
+                const script = document.createElement('script');
+                script.src = 'https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js';
+                script.type = 'module';
+                script.onload = resolve;
+                document.head.appendChild(script);
+            });
 
-  const canvasCtx = canvasElement.getContext('2d');
-  
-  const backgroundImage = new Image();
-  backgroundImage.src = 'https://raw.githubusercontent.com/RattanArt/Model/refs/heads/main/imgHeat03.png';
-  backgroundImage.crossOrigin = "anonymous";
-  await new Promise(resolve => backgroundImage.onload = resolve);
+            await new Promise(resolve => {
+                const script = document.createElement('script');
+                script.src = 'https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js';
+                script.type = 'module';
+                script.onload = resolve;
+                document.head.appendChild(script);
+            });
+        }
 
-  const selfieSegmentation = new SelfieSegmentation({locateFile: (file) => {
-    return `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`;
-  }});
+        async function main() {
+            await loadMediaPipe();
 
-  selfieSegmentation.setOptions({
-    modelSelection: 1,
-  });
+            const canvasCtx = canvasElement.getContext('2d');
+            const backgroundImage = new Image();
+            backgroundImage.src = 'https://raw.githubusercontent.com/RattanArt/Model/refs/heads/main/imgHeat03.png';
+            backgroundImage.crossOrigin = "anonymous";
+            await new Promise(resolve => backgroundImage.onload = resolve);
 
-  selfieSegmentation.onResults((results) => {
-    canvasCtx.save();
-    canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-    canvasCtx.drawImage(results.segmentationMask, 0, 0, canvasElement.width, canvasElement.height);
+            const selfieSegmentation = new SelfieSegmentation({locateFile: (file) => {
+                return `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`;
+            }});
 
-    canvasCtx.globalCompositeOperation = 'source-in';
-    canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+            selfieSegmentation.setOptions({
+                modelSelection: 1,
+            });
 
-      canvasCtx.globalCompositeOperation = 'destination-over';
-      canvasCtx.drawImage(backgroundImage, 0, 0, canvasElement.width, canvasElement.height);
-  
+            selfieSegmentation.onResults((results) => {
+                canvasCtx.save();
+                canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+                canvasCtx.drawImage(results.segmentationMask, 0, 0, canvasElement.width, canvasElement.height);
 
-    canvasCtx.restore();
-  });
+                canvasCtx.globalCompositeOperation = 'source-in';
+                canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
 
-  const camera = new Camera(videoElement, {
-    onFrame: async () => {
-      await selfieSegmentation.send({image: videoElement});
-    },
-    width: 640,
-    height: 480,
-  });
-  camera.start();
-  loadingText.remove();
-}
+                canvasCtx.globalCompositeOperation = 'destination-over';
+                canvasCtx.drawImage(backgroundImage, 0, 0, canvasElement.width, canvasElement.height);
 
-navigator.mediaDevices.getUserMedia({ video: true }).then(() => {
-  main();
-}).catch((error) => {
-    console.error("Error accessing camera:", error);
-    loadingText.textContent = "Error accessing camera. Please check permissions.";
-  });
-	
-	</script>
+                canvasCtx.restore();
+            });
+
+            const camera = new Camera(videoElement, {
+                onFrame: async () => {
+                    await selfieSegmentation.send({image: videoElement});
+                },
+                width: 640,
+                height: 480,
+            });
+            camera.start();
+            loadingText.style.display = 'none';
+        }
+
+        // Access video and microphone
+        navigator.mediaDevices.getUserMedia({ 
+            video: true, 
+            audio: true 
+        }).then((stream) => {
+            videoElement.srcObject = stream;
+            const audioStream = stream.getAudioTracks()[0];
+            const videoStream = stream.getVideoTracks()[0];
+
+            // Create a stream from the canvas content
+            const canvasStream = canvasElement.captureStream(30);  // 30 FPS
+
+            // Combine canvas video stream and microphone audio stream
+            const mediaStream = new MediaStream([
+                ...canvasStream.getTracks(),
+                audioStream
+            ]);
+
+            // Set up MediaRecorder
+            mediaRecorder = new MediaRecorder(mediaStream, {
+                mimeType: 'video/webm',
+            });
+
+            mediaRecorder.ondataavailable = (event) => {
+                recordedChunks.push(event.data);
+            };
+
+            mediaRecorder.onstop = () => {
+                const blob = new Blob(recordedChunks, {
+                    type: 'video/webm'
+                });
+                const url = URL.createObjectURL(blob);
+                downloadRecordingButton.href = url;
+                downloadRecordingButton.style.display = 'block';  // Make the button visible
+            };
+
+            startRecordingButton.addEventListener('click', () => {
+                recordedChunks = [];
+                mediaRecorder.start();
+                startRecordingButton.disabled = true;
+                stopRecordingButton.disabled = false;
+            });
+
+            stopRecordingButton.addEventListener('click', () => {
+                mediaRecorder.stop();
+                stopRecordingButton.disabled = true;
+                startRecordingButton.disabled = false;
+            });
+
+        }).catch((error) => {
+            console.error("Error accessing media devices:", error);
+            loadingText.textContent = "Error accessing camera or microphone. Please check permissions.";
+        });
+
+        main();
+    </script>
 </body>
 </html>
